@@ -1,0 +1,72 @@
+name: pilzy
+description: "Never miss a dose"
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  intl: ^0.20.0
+
+  # Local Storage
+  hive:
+  hive_flutter:
+
+  # BLoC State Management
+  flutter_bloc: ^9.1.1
+  equatable: ^2.0.5
+
+  # Local Notifications
+  flutter_local_notifications: ^19.4.2
+  timezone: ^0.10.1
+  android_intent_plus:
+
+  # Permissions
+  permission_handler:
+
+  # Splash Screen
+  flutter_native_splash: ^2.4.6
+
+flutter_native_splash:
+  color: "#F0F6F2"
+  image: assets/pilzy.jpeg
+  android_gravity: center
+  ios_content_mode: center
+
+  android_12:
+    color: "#F0F6F2"
+    image: assets/pilzy.jpeg
+    icon_background_color: "#F0F6F2"
+    branding: null
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # App Icon
+  flutter_launcher_icons: "^0.14.4"
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/playstore.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+
+  # Hive Adaptor Generators
+  build_runner: ^2.4.6
+  hive_generator: ^2.0.1
+
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/
