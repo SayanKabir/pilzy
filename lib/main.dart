@@ -31,10 +31,18 @@ Future<void> _configureLocalTimeZone() async {
 Future<void> _initHive() async {
   await Hive.initFlutter();
 
-  if (!Hive.isAdapterRegistered(MedicationAdapter().typeId)) {
+  // Register MedicationForm enum adapter
+  if (!Hive.isAdapterRegistered(0)) {
+    Hive.registerAdapter(MedicationFormAdapter());
+  }
+
+  // Register Medication adapter
+  if (!Hive.isAdapterRegistered(1)) {
     Hive.registerAdapter(MedicationAdapter());
   }
-  if (!Hive.isAdapterRegistered(DoseLogAdapter().typeId)) {
+
+  // Register DoseLog adapter
+  if (!Hive.isAdapterRegistered(2)) {
     Hive.registerAdapter(DoseLogAdapter());
   }
 }

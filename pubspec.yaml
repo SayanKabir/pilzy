@@ -15,6 +15,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   intl: ^0.20.0
 
+  # SVG
+  flutter_svg:
+
   # Local Storage
   hive:
   hive_flutter:
@@ -53,17 +56,17 @@ dev_dependencies:
   # App Icon
   flutter_launcher_icons: "^0.14.4"
 
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/playstore.png"
-  min_sdk_android: 21 # android min sdk min:16, default 21
-
   # Hive Adaptor Generators
   build_runner: ^2.4.6
   hive_generator: ^2.0.1
 
   flutter_lints: ^5.0.0
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/playstore.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
 
 flutter:
   uses-material-design: true

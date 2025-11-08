@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
 import '../constants/constants.dart';
 import '../models/medication.dart';
@@ -9,51 +10,68 @@ import '../blocs/medication_bloc.dart';
 import '../blocs/medication_event.dart';
 import '../utils/toast_helper.dart';
 
-class MedicationCard extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────
+// NOW STATEFUL (for bottle animation)
+// ─────────────────────────────────────────────────────────────
+
+class MedicationCard extends StatefulWidget {
   final Medication med;
   final List<DoseLog> logs;
 
-  const MedicationCard({Key? key, required this.med, required this.logs})
-      : super(key: key);
+  const MedicationCard({super.key, required this.med, required this.logs});
 
-  String formatTime(DateTime dt) {
-    return DateFormat('h:mm a').format(dt);
+  @override
+  State<MedicationCard> createState() => _MedicationCardState();
+}
+
+class _MedicationCardState extends State<MedicationCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fillAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    _fillAnim = Tween<double>(begin: 1, end: 1).animate(_controller);
   }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String formatTime(DateTime dt) => DateFormat('h:mm a').format(dt);
 
   String formatDateTime(DateTime dt) {
     final now = DateTime.now();
-    final difference = now.difference(dt);
-
-    if (difference.inDays == 0) {
-      // Same day → show only time
-      return DateFormat('h:mm a').format(dt);
-    } else if (difference.inDays == 1) {
-      return "yesterday";
-    } else if (difference.inDays < 7) {
-      return "${difference.inDays} days ago";
-    } else {
-      // Older than 7 days → show full date
-      return DateFormat('MMM d, yyyy h:mm a').format(dt);
-    }
+    final diff = now.difference(dt);
+    if (diff.inDays == 0) return DateFormat('h:mm a').format(dt);
+    if (diff.inDays == 1) return "yesterday";
+    if (diff.inDays < 7) return "${diff.inDays} days ago";
+    return DateFormat('MMM d, yyyy h:mm a').format(dt);
   }
 
   bool _isTakenToday(List<DoseLog> logs) {
     final today = DateTime.now();
-    return logs.any(
-          (log) =>
-      log.takenAt.year == today.year &&
-          log.takenAt.month == today.month &&
-          log.takenAt.day == today.day,
-    );
+    return logs.any((log) =>
+    log.takenAt.year == today.year &&
+        log.takenAt.month == today.month &&
+        log.takenAt.day == today.day);
   }
 
   @override
   Widget build(BuildContext context) {
+    final med = widget.med;
+    final logs = widget.logs;
     final bloc = context.read<MedicationBloc>();
+
     final sortedLogs = [...logs]..sort((a, b) => b.takenAt.compareTo(a.takenAt));
     final last = sortedLogs.isEmpty ? null : sortedLogs.first;
-
-    final taken = logs.isEmpty ? 0 : logs.length % med.stripSize;
     final takenToday = _isTakenToday(logs);
 
     return GestureDetector(
@@ -64,9 +82,7 @@ class MedicationCard extends StatelessWidget {
           _showConfirmDialog(context, bloc, med);
         }
       },
-      onLongPress: () {
-        _showOptionsDialog(context, bloc, med);
-      },
+      onLongPress: () => _showOptionsDialog(context, bloc, med),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
         child: ClipRRect(
@@ -74,7 +90,6 @@ class MedicationCard extends StatelessWidget {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
             child: Container(
-              width: double.infinity,
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.20),
                 borderRadius: BorderRadius.circular(20),
@@ -85,128 +100,81 @@ class MedicationCard extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              child: Padding(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Name + Dose
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        Text(
-                          med.name,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            color: MyConstants.charcoalColor,
-                            fontSize: 22,
-                          ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Name Row
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    children: [
+                      Text(
+                        med.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: MyConstants.charcoalColor,
+                          fontSize: 22,
                         ),
-                        Text(
-                          med.dose,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
-                            color: MyConstants.charcoalColor.withValues(alpha: 0.9),
-                          ),
+                      ),
+                      Text(
+                        med.dosage,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                          color: MyConstants.charcoalColor.withValues(alpha: 0.9),
                         ),
-                        if (takenToday)
-                          Icon(
-                            Icons.check_circle,
+                      ),
+                      if (takenToday)
+                        Icon(Icons.check_circle,
                             color: MyConstants.tealColor.withValues(alpha: 0.7),
-                            size: 30,
-                          ),
+                            size: 30),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  _buildMedicationFormDisplay(med, logs),
+
+                  const SizedBox(height: 18),
+
+                  // Last + Next Row (unchanged)
+                  Container(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _infoLabel("Next"),
+                            Text(formatTime(med.scheduledTime),
+                                style: _infoValueStyle()),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _infoLabel("Last"),
+                            Text(
+                              last != null ? formatDateTime(last.takenAt) : "Never",
+                              style: _infoValueStyle(),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-
-                    const SizedBox(height: 18),
-
-                    // Pill strip
-                    buildPillStrip(med.stripSize, taken),
-
-                    const SizedBox(height: 18),
-
-                    // Glassmorphic Info Row
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 10),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Next Column
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Next",
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: MyConstants.charcoalColor.withValues(alpha: 0.7),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                formatTime(med.time),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: MyConstants.charcoalColor,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          // Last Column
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  "Last",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: MyConstants.charcoalColor.withValues(alpha: 0.7),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  reverse: true,
-                                  child: Text(
-                                    last != null
-                                        ? formatDateTime(last.takenAt)
-                                        : "Never",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      color: MyConstants.charcoalColor,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -215,23 +183,71 @@ class MedicationCard extends StatelessWidget {
     );
   }
 
-  Widget buildPillStrip(int total, int taken) {
-    final displayTaken = taken % total;
+  TextStyle _infoValueStyle() => TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w700,
+    color: MyConstants.charcoalColor,
+  );
 
+  Text _infoLabel(String text) => Text(
+    text,
+    style: TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: MyConstants.charcoalColor.withValues(alpha: 0.7),
+    ),
+  );
+
+  // ─────────────────────────────────────────────────────────────
+  // MEDICATION FORM VISUAL SELECTOR
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildMedicationFormDisplay(Medication med, List<DoseLog> logs) {
+    switch (med.form) {
+      case MedicationForm.pill:
+        final total = med.pillsPerStrip ?? 10;
+        final used = logs.length % total;
+        final remaining = total - used;
+        final stripNumber = (logs.length ~/ total) + 1;
+        return buildPillStrip(total, used, remaining, stripNumber);
+
+      case MedicationForm.liquid:
+        final size = med.bottleSizeMl ?? 100.0;
+        final perDose = med.mlPerDose ?? 5.0;
+        final used = logs.length * perDose;
+        final remaining = size - (used % size);
+        final bottleNumber = (used ~/ size) + 1;
+        return buildLiquidBottle(size, remaining, bottleNumber);
+
+      default:
+        return buildOtherType("Other");
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PILL STRIP VISUAL (unchanged)
+  // ─────────────────────────────────────────────────────────────
+
+  Widget buildPillStrip(int total, int taken, int remaining, int stripNumber) {
     final pills = List.generate(total, (i) {
-      final isTaken = i < displayTaken;
+      final isEmpty = i < taken;
       return Container(
-        margin: const EdgeInsets.all(4),
-        width: 28,
-        height: 16,
+        margin: const EdgeInsets.all(3),
+        width: 32,
+        height: 20,
         decoration: BoxDecoration(
-          color: isTaken ? Colors.white.withValues(alpha: 0.2) : MyConstants.yellowColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.6), width: 1.2),
+          color: isEmpty ? Colors.transparent : MyConstants.yellowColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isEmpty
+                ? Colors.grey.withOpacity(0.4)
+                : Colors.black.withOpacity(0.6),
+            width: 1.5,
+          ),
         ),
       );
     });
 
+    // Break into rows of 5
     final rows = <Widget>[];
     for (int i = 0; i < pills.length; i += 5) {
       rows.add(
@@ -242,18 +258,193 @@ class MedicationCard extends StatelessWidget {
       );
     }
 
-    return Column(mainAxisAlignment: MainAxisAlignment.center, children: rows);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...rows,
+        const SizedBox(height: 8),
+        Text(
+          "$remaining remaining (Strip #$stripNumber)",
+          style: TextStyle(
+            color: MyConstants.charcoalColor,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
   }
 
-  /// Confirm Taken dialog
-  void _showConfirmDialog(
-      BuildContext context,
-      MedicationBloc bloc,
-      Medication med,
-      ) {
+  // ─────────────────────────────────────────────────────────────
+  // ✨ MINIMAL & ANIMATED BOTTLE
+  // ─────────────────────────────────────────────────────────────
+
+  Widget buildLiquidBottle(double total, double remaining, int bottleNumber) {
+    final targetFill = (remaining / total).clamp(0.0, 0.93);
+
+    _fillAnim = Tween<double>(
+      begin: _fillAnim.value,
+      end: targetFill,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    _controller.forward(from: 0);
+
+    return AnimatedBuilder(
+      animation: _fillAnim,
+      builder: (_, __) {
+        return Column(
+          children: [
+            SizedBox(
+              height: 150,
+              width: 70,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  // Bottle Body
+                  Positioned(
+                    bottom: 0,
+                    child: Container(
+                      width: 70,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: MyConstants.charcoalColor.withOpacity(0.55),
+                          width: 2,
+                        ),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24), // softer top curve
+                          bottom: Radius.circular(18),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // **Neck** (narrower section)
+                  Positioned(
+                    top: 4,
+                    child: Container(
+                      width: 42,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(10),
+                        ),
+                        border: Border(
+                          top: BorderSide(
+                            color: MyConstants.charcoalColor.withOpacity(0.55),
+                            width: 2,
+                          ),
+                          left: BorderSide(
+                            color: MyConstants.charcoalColor.withOpacity(0.55),
+                            width: 2,
+                          ),
+                          right: BorderSide(
+                            color: MyConstants.charcoalColor.withOpacity(0.55),
+                            width: 2,
+                          ),
+                          // ❗ NO bottom border → smooth merge into bottle
+                        ),
+                      ),
+                    ),
+                  ),
+
+
+                  // Liquid fill
+                  Positioned.fill(
+                    bottom: 0,
+                    child: FractionallySizedBox(
+                      heightFactor: _fillAnim.value,
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        margin: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: MyConstants.tealColor.withOpacity(0.5),
+                          borderRadius: const BorderRadius.vertical(
+                            bottom: Radius.circular(14),
+                            top: Radius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Cap
+                  Positioned(
+                    top: -10,
+                    child: Container(
+                      width: 46,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: MyConstants.charcoalColor.withOpacity(.45),
+                          width: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              "${remaining.toStringAsFixed(1)} ml remaining (Bottle #$bottleNumber)",
+              style: TextStyle(
+                color: MyConstants.charcoalColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget buildOtherType(String label) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 90,
+          height: 70,
+          child: SvgPicture.asset(
+            'assets/other.svg',
+            width: 90,
+            height: 70,
+            fit: BoxFit.contain,
+            colorFilter: ColorFilter.mode(
+              MyConstants.charcoalColor.withValues(alpha: 0.72), // softer than before
+              BlendMode.srcIn,
+            ),
+          ),
+
+        ),
+
+        const SizedBox(height: 8),
+
+        Text(
+          label,
+          style: TextStyle(
+            color: MyConstants.charcoalColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+          ),
+        ),
+      ],
+    );
+  }
+
+
+  // dialogs stay exactly like your original
+  void _showConfirmDialog(BuildContext context, MedicationBloc bloc, Medication med) {
     _showDialogTemplate(
       context,
-      title: 'Taken ${med.name} ${med.dose} ?',
+      title: 'Taken ${med.name} ${med.dosage}?',
       confirmText: 'Confirm Taken',
       onConfirm: () {
         bloc.add(MarkTakenEvent(med.id, DateTime.now()));
@@ -262,25 +453,18 @@ class MedicationCard extends StatelessWidget {
     );
   }
 
-  /// Retake confirmation dialog
-  void _showRetakeDialog(
-      BuildContext context,
-      MedicationBloc bloc,
-      Medication med,
-      ) {
+  void _showRetakeDialog(BuildContext context, MedicationBloc bloc, Medication med) {
     _showDialogTemplate(
       context,
-      title:
-      "You've already taken this medication today.\nAre you sure you want to re-take it?",
+      title: "You've already taken this today.\nTake again?",
       confirmText: 'Confirm Taken',
       onConfirm: () {
         bloc.add(MarkTakenEvent(med.id, DateTime.now()));
-        ToastHelper.showTopRightToast(context, '✅ ${med.name} marked as taken');
+        ToastHelper.showTopRightToast(context, '✅ ${med.name} marked again');
       },
     );
   }
 
-  /// Common dialog builder
   void _showDialogTemplate(
       BuildContext context, {
         required String title,
@@ -293,9 +477,7 @@ class MedicationCard extends StatelessWidget {
       builder: (ctx) {
         return Dialog(
           backgroundColor: Colors.black.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: BackdropFilter(
@@ -305,68 +487,41 @@ class MedicationCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 1.5,
-                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
+                    Text(title,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
                     const SizedBox(height: 16),
-
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: MyConstants.tealColor.withValues(alpha: 0.9),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            width: 1.2,
-                          ),
-                        ),
                       ),
                       onPressed: () {
                         Navigator.of(ctx).pop();
                         onConfirm();
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12.0,
-                          horizontal: 20,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20),
                         child: Text(
                           confirmText,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
                     TextButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      child: Text('Cancel',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w500,
+                          )),
                     ),
                   ],
                 ),
@@ -378,21 +533,14 @@ class MedicationCard extends StatelessWidget {
     );
   }
 
-  /// Edit/Delete dialog
-  void _showOptionsDialog(
-      BuildContext context,
-      MedicationBloc bloc,
-      Medication med,
-      ) {
+  void _showOptionsDialog(BuildContext context, MedicationBloc bloc, Medication med) {
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (ctx) {
         return Dialog(
           backgroundColor: Colors.black.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: BackdropFilter(
@@ -402,54 +550,27 @@ class MedicationCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 1.5,
-                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      '${med.name} ${med.dose}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
+                    Text('${med.name} ${med.dosage}',
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
                     const SizedBox(height: 16),
-
                     Row(
                       children: [
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                              MyConstants.tealColor.withValues(alpha: 0.8),
+                              backgroundColor: MyConstants.tealColor.withValues(alpha: 0.8),
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.6),
-                                  width: 1.2,
-                                ),
-                              ),
                             ),
                             onPressed: () {
                               Navigator.of(ctx).pop();
-                              ToastHelper.showTopRightToast(
-                                context,
-                                '🚧 Edit functionality coming soon!',
-                              );
+                              ToastHelper.showTopRightToast(context, '🚧 Edit coming soon');
                             },
-                            child: const Text(
-                              'Edit',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            child: const Text('Edit'),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -458,45 +579,26 @@ class MedicationCard extends StatelessWidget {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.redAccent.withValues(alpha: 0.8),
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.6),
-                                  width: 1.2,
-                                ),
-                              ),
                             ),
                             onPressed: () {
                               Navigator.of(ctx).pop();
                               bloc.add(RemoveMedicationEvent(med.id));
-                              ToastHelper.showTopRightToast(
-                                context,
-                                '❌ ${med.name} deleted',
-                              );
+                              ToastHelper.showTopRightToast(context, '❌ Deleted');
                             },
-                            child: const Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            child: const Text('Delete'),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-
                     TextButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      child: Text('Cancel',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w500,
+                          )),
                     ),
                   ],
                 ),

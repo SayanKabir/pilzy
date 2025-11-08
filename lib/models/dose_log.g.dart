@@ -8,7 +8,7 @@ part of 'dose_log.dart';
 
 class DoseLogAdapter extends TypeAdapter<DoseLog> {
   @override
-  final int typeId = 1;
+  final int typeId = 2;
 
   @override
   DoseLog read(BinaryReader reader) {
