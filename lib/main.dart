@@ -96,7 +96,7 @@ class MyApp extends StatelessWidget {
       child: BlocProvider(
         create: (context) => MedicationBloc(
           repository: repository,
-          notifications: notificationService.flutterLocalNotificationsPlugin,
+          notificationService: notificationService, // Pass the service here
         )..add(LoadMedications()),
         child: MaterialApp(
           title: 'Pilzy - Medication Reminder',
