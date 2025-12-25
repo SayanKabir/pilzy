@@ -21,6 +21,7 @@ dependencies:
   # Local Storage
   hive:
   hive_flutter:
+  shared_preferences:
 
   # BLoC State Management
   flutter_bloc: ^9.1.1
