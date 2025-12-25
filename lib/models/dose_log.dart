@@ -1,9 +1,9 @@
 import 'package:hive/hive.dart';
-
+import 'medication.dart';
 part 'dose_log.g.dart';
 
-@HiveType(typeId: 1)
-class DoseLog extends HiveObject{
+@HiveType(typeId: 2)
+class DoseLog extends HiveObject {
   @HiveField(0)
   final int medId;
 

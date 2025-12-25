@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'repositories/medication_repository.dart';
-import 'blocs/medication_bloc.dart';
-import 'blocs/medication_event.dart';
-import 'screens/home_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+// 📂 Core Imports
+import 'repositories/medication_repository.dart';
+import 'blocs/medication_bloc.dart';
+import 'blocs/medication_event.dart';
+import 'screens/home_screen.dart';
 import 'models/medication.dart';
 import 'models/dose_log.dart';
 import 'services/notification_service.dart';
+import 'services/settings_service.dart';
+import 'constants/constants.dart';
+
+// ─────────────────────────────────────────────────────────────
+// PERMISSIONS & TIMEZONE CONFIG
+// ─────────────────────────────────────────────────────────────
 
 Future<void> _requestNotificationPermission() async {
   if (await Permission.notification.isDenied) {
@@ -21,49 +29,72 @@ Future<void> _requestNotificationPermission() async {
 
 Future<void> _configureLocalTimeZone() async {
   tzdata.initializeTimeZones();
-
-  // Hardcode Asia/Kolkata timezone
-  const String timeZone = 'Asia/Kolkata';
-  tz.setLocalLocation(tz.getLocation(timeZone));
-  debugPrint('Timezone set to: $timeZone');
+  // Using generic Local for better global support, or set specific if needed
+  try {
+    tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
+  } catch (e) {
+    debugPrint("Failed to set location, using local default: $e");
+  }
 }
+
+// ─────────────────────────────────────────────────────────────
+// HIVE INITIALIZATION & ADAPTERS
+// ─────────────────────────────────────────────────────────────
 
 Future<void> _initHive() async {
   await Hive.initFlutter();
 
-  if (!Hive.isAdapterRegistered(MedicationAdapter().typeId)) {
-    Hive.registerAdapter(MedicationAdapter());
-  }
-  if (!Hive.isAdapterRegistered(DoseLogAdapter().typeId)) {
-    Hive.registerAdapter(DoseLogAdapter());
-  }
+  // Register all type adapters
+  // Ensure these TypeIDs match exactly what is in your model files
+  if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(MedicationFormAdapter());
+  if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(MedicationAdapter());
+  if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(DoseLogAdapter());
+  if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(FrequencyTypeAdapter());
 }
+
+// ─────────────────────────────────────────────────────────────
+// ENTRY POINT
+// ─────────────────────────────────────────────────────────────
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Request notification permission
-  await _requestNotificationPermission();
-
-  // Setup timezone
+  // 1. Core Config
   await _configureLocalTimeZone();
-
-  // Initialize Hive
   await _initHive();
 
-  // Initialize repository
+  // 2. Load User Settings First (Critical for Notifications)
+  await SettingsService().init();
+
+  // 3. Initialize Repositories
   final repo = MedicationRepository();
   await repo.init();
 
-  // Initialize NotificationService
+  // 4. Notification Service Setup
   final notificationService = NotificationService();
   await notificationService.init();
+  await _requestNotificationPermission();
 
-  // 🔹 Only request if not already granted
+  // 5. Android Exact Alarm Permission Check (API 31+)
   final hasAlarmPermission = await notificationService.hasExactAlarmPermission();
   if (!hasAlarmPermission) {
     await notificationService.requestExactAlarmPermission();
   }
+
+  // 🔄 SAFETY NET: Reschedule all alarms on app launch
+  // This ensures alarms persist even if the OS wiped them during a reboot/update
+  if (repo.box.isNotEmpty) {
+    await notificationService.rescheduleAll(repo.box.values.toList());
+  }
+
+  // 6. UI Polish (Portrait Lock & Edge-to-Edge)
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: MyConstants.mintColor,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
 
   runApp(MyApp(
     repository: repo,
@@ -76,24 +107,37 @@ class MyApp extends StatelessWidget {
   final NotificationService notificationService;
 
   const MyApp({
-    Key? key,
+    super.key,
     required this.repository,
     required this.notificationService,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    return RepositoryProvider.value(
-      value: repository,
+    return MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider.value(value: repository),
+        RepositoryProvider.value(value: notificationService),
+      ],
       child: BlocProvider(
         create: (context) => MedicationBloc(
           repository: repository,
-          notifications: notificationService.flutterLocalNotificationsPlugin,
+          notificationService: notificationService,
         )..add(LoadMedications()),
         child: MaterialApp(
-          title: 'Pilzy - Medication Reminder',
+          title: 'Pilzy',
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(primarySwatch: Colors.blue),
+          theme: ThemeData(
+            primaryColor: MyConstants.tealColor,
+            scaffoldBackgroundColor: MyConstants.mintColor,
+            useMaterial3: true,
+            fontFamily: 'Nunito', // Ensure this font is in pubspec.yaml
+            colorScheme: ColorScheme.fromSwatch(
+              primarySwatch: Colors.teal,
+              accentColor: MyConstants.tealColor,
+              backgroundColor: MyConstants.mintColor,
+            ),
+          ),
           home: const HomeScreen(),
         ),
       ),
