@@ -212,7 +212,7 @@ of this software and associated documentation files (the "Software")...
 
 **Built with ❤️ by Sayan**
 
-- 🌐 **Website**: https://sayan-kabir-portfolio.vercel.app
+- 🌐 **Website**: https://portfolio.kabirsayan.vercel.app
 - 📧 **Email**: sayan.kabir.official@gmail.com
 - 💼 **LinkedIn**: https://linkedin.com/in/sayankabir
 
